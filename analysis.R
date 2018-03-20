@@ -46,7 +46,6 @@ world<-readShapePoly("~/Dropbox/World/world_dissolved.shp")
 proj4string(world)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 world<-spTransform(world,CRS(newproj))
 
-
 ####################################################################################
 
 ######################
@@ -95,6 +94,54 @@ dev.off()
 
 ######################################################################################
 
+#Examining spatial autocorrelation
+
+getSpatialAutocorr<-function(df,Var,Increment=10){
+  require(ncf)  
+  df<-subset(df,!is.na(df[,Var]))
+  index = sample(1:length(df$x),2000,replace = F)
+  co = correlog(df$x[index],df$y[index],df[,Var][index],increment = Increment,resamp = 1000, 
+                latlon = F,na.rm=T,quiet=T)
+  co_df<-data.frame(Distance=co[["mean.of.class"]],Corr=co[["correlation"]],Type=Var,P=co[["p"]])
+  return(co_df)
+}
+
+#run function on the dataset
+df<-data.frame(mydataEE@data,mydataEE@coords)
+allco<-lapply(names(df)[which(!names(df)%in%c("x","y"))],function(x)getSpatialAutocorr(df,x))
+allco<-do.call(rbind,allco)
+#split by driver and colour by factor
+allco$Driver<-factor(allco$Type,levels=myorder)
+allco$Class<-as.character(sapply(allco$Type,getDriverClass))
+allco$Class<-factor(allco$Class,levels=c("Climate_change","Human_use","Population",
+                                         "Pollution","Invasions"))
+allco<-allco[order(allco$Distance),]
+
+#subset dataset until consistent non-significance for each driver
+allco2<-ddply(allco,.(Driver,Class),function(x){
+  #first non-sig p
+  require(zoo)
+  x$rollP<-rollmedian(x$P,5,fill=NA)
+  last<-min(which(x$rollP>=0.05&!is.na(x$rollP)))
+  x[1:last,]
+})
+
+#plotting
+png(file = paste0("correlogram_Sig",realm,transformation,".png"),width = 225, height = 550, units = "px")
+qplot(Distance,Corr,data=allco,geom="blank",colour=Driver,xlab="Distance in km")+
+  theme_bw()+
+  stat_smooth(data=allco2,method="loess",alpha=0.9,aes(color=Driver,fill=Driver),se=FALSE)+
+  scale_fill_manual(values=mycols)+
+  scale_colour_manual(values=mycols)+
+  facet_wrap(~Class,ncol=1)+
+  xlim(0,4000000)+ylim(-0.1,1)+
+  ylab("Correlation")+
+  theme(legend.position = "none")+
+  theme(strip.text = element_text(size=rel(1)))
+dev.off()
+
+######################################################################################
+
 #modified t.test to check significance of pair-wise correlations after accounting 
 #for spatial autocorrelation
 
@@ -118,6 +165,7 @@ subset(correctedCors,value>=0.7)# all significant
 
 #get data frame showing biome overlap for each grid cell
 biomeCov<-ddply(biomeCov,.(cell,BIOME,x,y),summarise,weight=sum(weight))
+alldataM$Weight<-round(alldataM$weight*100)#get percent cover
 alldata<-data.frame(mydataEE@data,mydataEE@coords)
 alldata<-merge(biomeCov,alldata,by=c("x","y"))
 alldataM<-melt(alldata,id=c("x","y","BIOME","cell","weight"))
@@ -128,11 +176,17 @@ alldataM$BIOME<-factor(alldataM$BIOME)
 alldataM<-subset(alldataM,!is.na(BIOME))
 alldataM$Driver<-factor(alldataM$variable,levels=myorder)
 
+#label each variable by its group
+alldataM$DriverGroup[alldataM$Driver%in%CCvars]<-"Climate_change"
+alldataM$DriverGroup[alldataM$Driver%in%Invasions]<-"Invasions"
+alldataM$DriverGroup[alldataM$Driver%in%Pollution]<-"Pollution"
+alldataM$DriverGroup[alldataM$Driver%in%HumanUse]<-"Human_use"
+alldataM$DriverGroup[alldataM$Driver=="Population"]<-"Human_population"
+
 #For each biome and driver, get weighted average rank
-alldataMa<-ddply(alldataM,.(BIOME,Driver),summarise,
+alldataMa<-ddply(alldataM,.(BIOME,DriverGroup),summarise,
                  sd=sd(rep(value,times=Weight)),
                  value=mean(rep(value,times=Weight)))
-
 
 #Difference by the global average
 avPressure<-ddply(alldataMa,.(Driver),summarise,value=median(value))
@@ -325,5 +379,111 @@ g+geom_polygon(data=worldP,aes(x=long,y=lat,group=group),fill="NA",colour="black
   geom_path(aes(x = long, y = lat), data = outline, size=0.25, colour="black")
 dev.off()  
 
+##########################################################################
+
+#Plotting global maps
+
+#assign 1 to cells in the top 10% of non-zero vaues
+mydataP<-mydataR
+mydataP<-spTransform(mydataP,projection(refProj))
+
+mydataP@data<-data.frame(sapply(names(mydataP@data),function(x){
+  var<-mydataP@data[,x]
+  mydataP@data[,x]<-ifelse(mydataP@data[,x]<=0,0,mydataP@data[,x])
+  quant<-quantile(mydataP@data[,x][mydataP@data[,x]>0],0.9)
+  mydataP@data[,x]<-ifelse(mydataP@data[,x]<=quant,0,1)
+}))
+
+colSums(mydataP@data)
+nrow(mydata@data)
+
+#function to sum across rasters within a driver group
+myfun<-function(mydataP){
+  
+  #get number of rasters within driver  
+  N=length(names(mydataP))
+  
+  #find hotspot areas 
+  rstack<-stack()
+  for(i in 1:N){
+    out<-rasterize(mydataP,refProj,field=names(mydataP)[i])
+    rstack<-stack(list(rstack,out))
+  }
+  out<-calc(rstack,fun=sum)
+  return(out)
+}
+
+#create dummy variable for later use
+mydataP@data$dummy<-rep(0,nrow(mydataP))
+
+#code for terrestrial data sets
+outT_TC<-myfun(mydataP[,CCvars])
+#for human use
+outT_HU<-myfun(mydataP[,c("Crop_trend","Cropland","Forest_loss","Pasture_trend","Urban","Urban_trend")])
+#for human population
+outT_Pop<-myfun(mydataP[,c("dummy","Population")])
+#for pollution
+outT_P<-myfun(mydataP[,c("Fertilizer_app","Pesticides","N_deposition")])
+#for invasions
+outT_I<-myfun(mydataP[,c("dummy","Accessibility")])
+outSum<-stack(outT_TC,outT_P,outT_HU,outT_Pop,outT_I)
+save(outSum,file="outSum.RData")
+
+#code for marine datasets
+outM_TC<-myfun(mydataP[,c(CCvars)])
+#for invasions
+outM_I<-myfun(mydataP[,c("dummy","Port_volume")])
+#for human population
+outM_Pop<-myfun(mydataP[,c("dummy","Population")])
+#for pollution
+outM_P<-myfun(mydataP[,c("Fertilizer","Ocean_poll","Inorganic" )])
+#for human use
+outM_HU<-myfun(mydataP[,c("Artisanal_fish","Demersalfish_Destr","Demersalfish_HighBycatch",
+                          "Demersalfish_LowBycatch","Pelagicfish_HighBycatch",
+                          "Pelagicfish_LowBycatch")])
+outSum_M<-stack(outM_TC,outM_P,outM_HU,outM_Pop,outM_I)
+save(outSum,file="outSum_M.RData")
+
+#Plotting combined map
+load("outSum.RData")
+load("outSum_M.RData")
+
+library(RColorBrewer)
+library(scales)
+show_col(brewer.pal(9,"Oranges"))
+
+#plotting 5 in a row
+png("global_maps.png", 550, 500)
+par(mfrow=c(3,2))
+
+#merge terrestrial and marine maps for each driver group
+outB_TC<-merge(outSum[[1]],outSum_M[[1]])
+plot(outB_TC,col=c(col2hex("gray99"),brewer.pal(9,"Oranges")[c(3,5,6,9)]),axes=FALSE,legend=TRUE, asp = 1)
+plot(world,add=T,border=col2hex("gray20"),lwd=0.1)
+
+outB_HU<-merge(outSum_M[[3]],outSum[[3]])
+plot(outB_HU,col=c(col2hex("gray99"),brewer.pal(9,"Oranges")[c(3,4,6,7,8,9)]),axes=FALSE,legend=TRUE, asp = 1)
+plot(world,add=T,border=col2hex("gray20"),lwd=0.1)
+
+outB_Pop<-merge(outSum[[4]],outSum_M[[4]])
+plot(outB_Pop,col=c(col2hex("gray99"),brewer.pal(9,"Oranges")[9]),axes=FALSE,legend=TRUE, asp = 1)
+plot(world,add=T,border=col2hex("gray20"),lwd=0.1)
+
+outB_P<-merge(outSum[[2]],outSum_M[[2]])
+plot(outB_P,col=c(col2hex("gray99"),brewer.pal(9,"Oranges")[c(3,6,9)]),axes=FALSE,legend=TRUE, asp = 1)
+plot(world,add=T,border=col2hex("gray20"),lwd=0.1)
+
+outB_I<-merge(outSum[[5]],outSum_M[[5]])
+plot(outB_I,col=c(col2hex("gray99"),brewer.pal(9,"Oranges")[9]),axes=FALSE,legend=TRUE, asp = 1)
+plot(world,add=T,border=col2hex("gray20"),lwd=0.1)
+
+#summed map
+outB_sum<-stack(outB_TC,outB_HU,outB_Pop,outB_P,outB_I)
+outB_sum<-calc(outB_sum,fun=sum)
+plot(outB_sum,col=c(col2hex("gray99"),brewer.pal(9,"Oranges")[c(2,3,4,5,7,8,9)]),axes=FALSE,legend=TRUE, asp = 1)
+plot(world,add=T,border=col2hex("gray20"),lwd=0.5)
+dev.off()
+
 ###########################################################################
 
+#Plotting cumulative impacts

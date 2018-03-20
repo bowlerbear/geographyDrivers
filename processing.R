@@ -227,6 +227,14 @@ if(realm=="T"){
                 "(Sub)Tropical dry broadleaf forest","(Sub)Tropical grass/shrubland","(Sub)Tropical moist broadleaf forest",
                 "Tundra")
   
+  Climate_change<-CCvars<-c("Temp_change","Extreme_trends","VOCC",
+                            "Temp_divergence","Aridity_change")
+  Human1<-c("Fertilizer_app","N_deposition","Pesticides","Accessibility","Urban_trend","Cropland")
+  Human2<-c("Pasture_trend","Forest_loss","Crop_trend")
+  Human_use<-HumanUse<-c("Urban_trend","Urban","Cropland","Pasture_trend","Forest_loss","Crop_trend")
+  Invasions<-"Accessibility"
+  Pollution<-c("Fertilizer_app","N_deposition","Pesticides")
+  
 }else if (realm=="M"){
   myorder<-rev(c("SST_change","VOCC_SST","SST_extremes","SST_divergence","Ocean_acid",
                  "Artisanal_fish","Demersalfish_HighBycatch","Demersalfish_LowBycatch", 
@@ -239,6 +247,13 @@ if(realm=="T"){
                  "SAO","SPO",
                  "TAu","TNA","TNP","TSAm","TSAf","TAt",
                  "TEP","WIP")
+  
+  Climate_change<-CCvars<-c("Ocean_acid","SST_change","SST_extremes","SST_divergence","VOCC_SST")
+  Human1<-c("Artisanal_fish","Port_volume","Fertilizer","Inorganic")
+  Human_use<-HumanUse<-c("Artisanal_fish","Demersalfish_Destr","Demersalfish_HighBycatch","Demersalfish_LowBycatch",
+                         "Pelagicfish_HighBycatch","Pelagicfish_LowBycatch")
+  Invasions<-"Port_volume"
+  Pollution<-c("Fertilizer","Inorganic","Ocean_poll") 
 }
 
 mycols<-c(mycols<-col2hex("lightblue4"),
@@ -253,3 +268,5 @@ driverCols<-c(brewer.pal(9,"OrRd")[7],brewer.pal(9,"Blues")[7],brewer.pal(9,"Pur
 
 
 ####################################################################################################
+
+
