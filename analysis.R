@@ -485,5 +485,3 @@ plot(world,add=T,border=col2hex("gray20"),lwd=0.5)
 dev.off()
 
 ###########################################################################
-
-#Plotting cumulative impacts
