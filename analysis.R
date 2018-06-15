@@ -48,6 +48,11 @@ world<-spTransform(world,CRS(newproj))
 
 ####################################################################################
 
+library(reshape2)
+library(plyr)
+
+####################################################################################
+
 ######################
 #Correlation analysis#
 ######################
@@ -165,10 +170,10 @@ subset(correctedCors,value>=0.7)# all significant
 
 #get data frame showing biome overlap for each grid cell
 biomeCov<-ddply(biomeCov,.(cell,BIOME,x,y),summarise,weight=sum(weight))
-alldataM$Weight<-round(alldataM$weight*100)#get percent cover
 alldata<-data.frame(mydataEE@data,mydataEE@coords)
 alldata<-merge(biomeCov,alldata,by=c("x","y"))
 alldataM<-melt(alldata,id=c("x","y","BIOME","cell","weight"))
+alldataM$Weight<-round(alldataM$weight*100)#get percent cover
 
 #Remove biomes of less interest or not entirely covered by the dataset
 alldataM<-subset(alldataM,!BIOME%in%c("Lakes","Rock and Ice","ARCTIC OCEAN","Southern Ocean"))
@@ -189,13 +194,13 @@ alldataMa<-ddply(alldataM,.(BIOME,DriverGroup),summarise,
                  value=mean(rep(value,times=Weight)))
 
 #Difference by the global average
-avPressure<-ddply(alldataMa,.(Driver),summarise,value=median(value))
-alldataMa$avPressure<-avPressure$value[match(alldataMa$Driver,avPressure$Driver)]
+avPressure<-ddply(alldataMa,.(DriverGroup),summarise,value=median(value))
+alldataMa$avPressure<-avPressure$value[match(alldataMa$DriverGroup,avPressure$Driver)]
 alldataMa$value<-(alldataMa$value-alldataMa$avPressure)
 alldataMa<-subset(alldataMa,value>0)#just plot the positive deviations
 
 #Cleaning for presentation
-alldataMa<-alldataMa[order(as.numeric(alldataMa$Driver)),]
+alldataMa<-alldataMa[order(as.numeric(alldataMa$value)),]
 alldataMa$BIOME<-as.factor(sapply(tolower(as.character(alldataMa$BIOME)),simpleCap))
 
 #terrestrial labels
@@ -218,12 +223,12 @@ alldataMa$DriverF<-factor(alldataMa$DriverF,levels=rev(levels(alldataMa$DriverF)
 #dot map plot
 png(file = paste0("sepedchart2square",realm,transformation,".png"),width = 1200, height = 850, units = "px")
 ggplot(alldataMa,aes(x=BIOME,y=value))+
-  geom_bar(aes(fill=Driver),stat="identity")+
-  scale_fill_manual(values=mycols)+
-  geom_errorbar(aes(x=BIOME,ymax=value+sd,ymin=value,colour=Driver))+
-  scale_colour_manual(values=mycols)+
+  geom_bar(aes(fill=DriverGroup),stat="identity")+
+  scale_fill_manual(values=driverCols)+
+  geom_errorbar(aes(x=BIOME,ymax=value+sd,ymin=value,colour=DriverGroup))+
+  scale_colour_manual(values=driverCols)+
   coord_flip()+theme_bw()+
-  facet_grid(~DriverF)+
+  facet_grid(~DriverGroup)+
   theme(strip.background = element_blank(),
         strip.text.x = element_text(size=rel(1.5),angle=90),
         axis.text.y = element_text(size=rel(1.5)),
