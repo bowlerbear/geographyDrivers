@@ -75,7 +75,9 @@ if(realm=="T"){
   rawData$Value[rawData$Type=="Cropland"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Pasture"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Population"&is.na(rawData$Value)]<-0.00
-}  
+} else if(realm=="M"){
+  rawData$Value[rawData$Type=="Light_pollution"&is.na(rawData$Value)]<-0.00
+}
 
 ############################################################################################
 
