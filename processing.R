@@ -70,15 +70,12 @@ ggplot(mydata@data)+geom_point(aes(x=x,y=y),size=rel(0.5))+facet_wrap(~Type)
 #terrestrial
 if(realm=="T"){
   #most missing data in very north of northern hemisphere assume as zero
-  rawData$Value[rawData$Type=="Pesticides"&is.na(rawData$Value)]<-0.00
-  rawData$Value[rawData$Type=="Livestock"&is.na(rawData$Value)]<-0.00
+  rawData$Value[rawData$Type=="Pesticide_use"&is.na(rawData$Value)]<-0.00
+  rawData$Value[rawData$Type=="Cattle_density"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Cropland"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Pasture"&is.na(rawData$Value)]<-0.00
-  rawData$Value[rawData$Type=="Pop_dens"&is.na(rawData$Value)]<-0.00
-  
-}else if (realm=="M"){
-  rawData$Value[rawData$Type%in%c("Artisanal_fish","ArtisanalFish")&is.na(rawData$Value)]<-0.00
-}
+  rawData$Value[rawData$Type=="Population"&is.na(rawData$Value)]<-0.00
+}  
 
 ############################################################################################
 
@@ -87,7 +84,7 @@ if(realm=="T"){
 
 rawData<-dcast(rawData,x+y~Type,value.var="Value")
 mydata<-rawData[complete.cases(rawData),]
-refCrop<-crop(ref,extent(-179,179,-58,78))
+refCrop<-crop(ref,extent(-180,180,-58,78))
 out<-projectExtent(refCrop,crs=newproj)
 mydata<-subset(mydata,x>out@extent@xmin&x<out@extent@xmax)
 mydata<-subset(mydata,y>out@extent@ymin&y<out@extent@ymax)
@@ -133,8 +130,7 @@ do.call(grid.arrange, p)
 #Make transformations so that larger values mean more of that pressure
 
 if(realm=="T"){
-  mydata@data$Accessibility<-1/mydata@data$Accessibility
-  mydata@data$Forest_loss<-mydata@data$Forest_loss*-1
+  mydata@data$Connectivity<-1/mydata@data$Connectivity
 }
 
 #####################################################################################
@@ -211,61 +207,39 @@ library(RColorBrewer)
 library(gplots)
 
 if(realm=="T"){
-  myorder=order=c("Accessibility",
-                  "Pesticides", "Fertilizer_app","N_deposition",
+  myorder=order=c("Connectivity",
+                  "Pesticide_use", "Fertilizer_use","N_deposition","Light_pollution",
                   "Population",
-                  "Pasture_trend","Cropland","Crop_trend","Urban","Urban_trend","Forest_loss",
-                  "Aridity_change","Temp_divergence","Extreme_trends","VOCC","Temp_change")
+                  "Pasture","Cattle_density","Cropland","Urban","Forest_loss",
+                  "Aridity_trend","Temp_divergence","Extreme_trend","VOCC","Temp_trend")
   
   biomeAbrevs<-c("BF","D","FS","L","M","MS","MGS","RI",
                  "TBMF","TeCF","TeGS","TrCF","TDBF","TrGS",
                  "TMBF","T")
   
-  biomeShort<-c("Boreal forest","Desert","Flooded savanna","Mangrove",
-                "Mediterranean scrub","Montane grass/shrubland","Temperate broadleaf/mixed forest",
-                "Temperate coniferous forest","Temperate grass/shrubland","(Sub)Tropical coniferous forest",
-                "(Sub)Tropical dry broadleaf forest","(Sub)Tropical grass/shrubland","(Sub)Tropical moist broadleaf forest",
-                "Tundra")
-  
-  Climate_change<-CCvars<-c("Temp_change","Extreme_trends","VOCC",
-                            "Temp_divergence","Aridity_change")
-  Human1<-c("Fertilizer_app","N_deposition","Pesticides","Accessibility","Urban_trend","Cropland")
-  Human2<-c("Pasture_trend","Forest_loss","Crop_trend")
-  Human_use<-HumanUse<-c("Urban_trend","Urban","Cropland","Pasture_trend","Forest_loss","Crop_trend")
-  Invasions<-"Accessibility"
-  Pollution<-c("Fertilizer_app","N_deposition","Pesticides")
-  
 }else if (realm=="M"){
-  myorder<-rev(c("SST_change","VOCC_SST","SST_extremes","SST_divergence","Ocean_acid",
-                 "Artisanal_fish","Demersalfish_HighBycatch","Demersalfish_LowBycatch", 
+  myorder<-rev(c("SST_trend","VOCC_SST","SST_extremes","SST_divergence","Ocean_acid",
+                 "Demersalfish_HighBycatch","Demersalfish_LowBycatch", 
                  "Demersalfish_Destr","Pelagicfish_HighBycatch","Pelagicfish_LowBycatch",
                  "Population",
-                 "Fertilizer","Inorganic","Ocean_poll",
+                 "Fertilizer_use","Pesticide_use","Shipping_pollution","Light_pollution",
                  "Port_volume"))
   
   biomeAbrevs<-c("A","CIP","EIP","IO","NAO","NPO",
                  "SAO","SPO",
                  "TAu","TNA","TNP","TSAm","TSAf","TAt",
                  "TEP","WIP")
-  
-  Climate_change<-CCvars<-c("Ocean_acid","SST_change","SST_extremes","SST_divergence","VOCC_SST")
-  Human1<-c("Artisanal_fish","Port_volume","Fertilizer","Inorganic")
-  Human_use<-HumanUse<-c("Artisanal_fish","Demersalfish_Destr","Demersalfish_HighBycatch","Demersalfish_LowBycatch",
-                         "Pelagicfish_HighBycatch","Pelagicfish_LowBycatch")
-  Invasions<-"Port_volume"
-  Pollution<-c("Fertilizer","Inorganic","Ocean_poll") 
 }
 
-mycols<-c(mycols<-col2hex("lightblue4"),
-          brewer.pal(9,"Greys")[5:7],
-          brewer.pal(9,"Purples")[5],
-          brewer.pal(9,"Blues")[2:7],
-          brewer.pal(9,"OrRd")[3:7])
+mycols<-c(mycols<-col2hex("turquoise4"),#connectivitiy
+          brewer.pal(9,"Greys")[5:8],#pollution
+          brewer.pal(9,"Purples")[5],#human population
+          brewer.pal(9,"Blues")[3:7],#human use
+          brewer.pal(9,"OrRd")[3:7])#climate change
 
-driverOrder<-c("Climate_change","Human_use","Population","Pollution","Invasions")
+driverOrder<-c("Climate_change","Human_use","Human_population","Pollution","Invasions")
 driverCols<-c(brewer.pal(9,"OrRd")[7],brewer.pal(9,"Blues")[7],brewer.pal(9,"Purples")[5],
-              brewer.pal(9,"Greys")[7],brewer.pal(11,"BrBG")[5])
-
+              brewer.pal(9,"Greys")[7],col2hex("turquoise4"))
 
 ####################################################################################################
 
