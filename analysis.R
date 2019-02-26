@@ -4,8 +4,9 @@
 
 #Analysis decisions
 
-#choose ratser data frame file - according to resolution and projection
-files<-"output_all_Eckman_100km.RData"
+#choose ratser data frame file - according to resolution and realm
+files <- "output_NP_100_T_RPFirst.RData"#100 km grid terrestrial data
+files <- "output_NP_100_M_RPFirst.RData"#100 km grid marine data
 
 #decide whether to do analysis for terrestrial or for marine
 realm<-"T"
@@ -41,7 +42,7 @@ source('~/Desktop/processing.R', echo=TRUE)
 
 ########################################################################################### 
 
-#get world dissolved
+#get world shapefile
 world<-readShapePoly("~/Dropbox/World/world_dissolved.shp")
 proj4string(world)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 world<-spTransform(world,CRS(newproj))
@@ -76,7 +77,8 @@ corrMatrixm$Colour[corrMatrixm$value!=0.1]<-col2hex("grey70")
 corrMatrixm$Colour[corrMatrixm$value==0.0]<-"#FFFFFF00"
 
 #####################
-#plot chord diagram#
+#plot chord diagram
+#Fig. 1#
 ####################
 png(file = paste0("chordplot_",realm,transformation,"0.7.png"),width = 500, height = 500, units = "px")
 
@@ -97,9 +99,35 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 dev.off()
 
+#Fig. 2 - drawing just climate change correlations
+corrMatrix<-cor(mydata@data,method="spearman")
+corrMatrixm<-melt(corrMatrix)
+corrMatrixm<-subset(corrMatrixm,(Var1%in%c("Temp_trend","VOCC","SST_trend","VOCC_SST")))
+corrMatrixm<-subset(corrMatrixm,!(Var1%in%CCvars&Var2%in%CCvars))
+corrMatrixm$Var2<-factor(corrMatrixm$Var2,levels=myorder[!myorder%in%CCvars])
+corrMatrixm$Var1<-factor(corrMatrixm$Var1)
+corrMatrixm$Var1<-factor(corrMatrixm$Var1,levels=levels(corrMatrixm$Var1)[2:1])
+
+ggplot(corrMatrixm)+
+  geom_bar(aes(x=Var2,y=value,fill=Var2,alpha=Var1),stat="identity",position="dodge")+
+  coord_flip()+
+  scale_fill_manual(values=mycols[!myorder%in%CCvars])+
+  scale_alpha_manual(values=c(0.8,1))+
+  theme_bw()+
+  ylim(-0.35,0.35)+
+  ylab("Correlation coefficient")+
+  geom_hline(yintercept=0,linetype="dashed")+
+  theme(axis.text.y = element_text(size=rel(1.5)),
+        axis.text.x = element_text(size=rel(1.5)),
+        #axis.text.x = element_blank(),axis.ticks.x= element_blank(),
+        panel.grid=element_blank(),
+        axis.title.x= element_text(size=rel(1.5)),
+        axis.title.y= element_blank(),
+        legend.position="none")
+
 ######################################################################################
 
-#Examining spatial autocorrelation
+#Examining spatial autocorrelation (SOM)
 
 getSpatialAutocorr<-function(df,Var,Increment=10){
   require(ncf)  
@@ -188,55 +216,57 @@ alldataM$DriverGroup[alldataM$Driver%in%Pollution]<-"Pollution"
 alldataM$DriverGroup[alldataM$Driver%in%HumanUse]<-"Human_use"
 alldataM$DriverGroup[alldataM$Driver=="Population"]<-"Human_population"
 
-#For each biome and driver, get weighted average rank
-alldataMa<-ddply(alldataM,.(BIOME,DriverGroup),summarise,
-                 sd=sd(rep(value,times=Weight)),
-                 value=mean(rep(value,times=Weight)))
+#get average per cell
+alldataM<-ddply(alldataM,.(BIOME,DriverGroup,cell),summarise,
+                value = mean(value))
 
-#Difference by the global average
-avPressure<-ddply(alldataMa,.(DriverGroup),summarise,value=median(value))
-alldataMa$avPressure<-avPressure$value[match(alldataMa$DriverGroup,avPressure$Driver)]
-alldataMa$value<-(alldataMa$value-alldataMa$avPressure)
-alldataMa<-subset(alldataMa,value>0)#just plot the positive deviations
+#biome means
+avPressureB<-ddply(alldataM,.(DriverGroup,BIOME),summarise,valueB=median(value))
+alldataM <- merge(alldataM, avPressureB,by=c("DriverGroup","BIOME"))
 
-#Cleaning for presentation
-alldataMa<-alldataMa[order(as.numeric(alldataMa$value)),]
-alldataMa$BIOME<-as.factor(sapply(tolower(as.character(alldataMa$BIOME)),simpleCap))
+#global means
+avPressure<-ddply(avPressureB,.(DriverGroup),summarise,value=median(valueB))
+alldataM$avPressure<-avPressure$value[match(alldataM$DriverGroup,avPressure$DriverGroup)]
 
-#terrestrial labels
-levels(alldataMa$BIOME)<-biomeShort
+#difference biome means from global ones
+alldataM$direction <- as.character(alldataM$valueB>alldataM$avPressure)
+alldataM$value<-alldataM$value - alldataM$avPressure
 
-#order the biome variable by the number of climate change impacts it has, and then sum
-sequence<-ddply(alldataMa,.(BIOME),summarise,Sum=sum(value))
-alldataMa$BIOME<-factor(alldataMa$BIOME,levels=sequence$BIOME[order(sequence$Sum)])
+#driver labels sorting
+alldataM$DriverGroup<-factor(alldataM$DriverGroup,levels=driverOrder)
+if(realm=="T"){
+  levels(alldataM$BIOME)<-biomeShort
+}
+if(realm=="M"){
+  alldataM$BIOME<-as.factor(sapply(tolower(as.character(alldataM$BIOME)),simpleCap))
+}
 
-#Setting order of panels
-alldataMa$DriverF<-as.factor(alldataMa$Driver)
+#order the biomes by sum of values (total exposure)
+sequence<-ddply(alldataM,.(BIOME),summarise,Sum=sum(value))
+sequence$BIOME[order(sequence$Sum)]
+alldataM$BIOME<-factor(alldataM$BIOME,levels=sequence$BIOME[order(sequence$Sum)])
 
-#shorten the fishing ones
-levels(alldataMa$DriverF)[6:10]<-c("Pelagic_LowBycatch","Pelagic_HighBycatch",
-                                   "Demersal_Destr","Demersal_LowBycatch",
-                                   "Demersal_HighBycatch")
-
-alldataMa$DriverF<-factor(alldataMa$DriverF,levels=rev(levels(alldataMa$DriverF)))
-
-#dot map plot
-png(file = paste0("sepedchart2square",realm,transformation,".png"),width = 1200, height = 850, units = "px")
-ggplot(alldataMa,aes(x=BIOME,y=value))+
-  geom_bar(aes(fill=DriverGroup),stat="identity")+
+#plotting
+ggplot(alldataM,aes(x=factor(BIOME),y=value))+
+  geom_violin(aes(colour=DriverGroup,fill=DriverGroup,alpha=direction))+
+  facet_grid(~DriverGroup)+
+  scale_alpha_discrete(range=c(0.25,1))+
   scale_fill_manual(values=driverCols)+
-  geom_errorbar(aes(x=BIOME,ymax=value+sd,ymin=value,colour=DriverGroup))+
   scale_colour_manual(values=driverCols)+
   coord_flip()+theme_bw()+
+  geom_hline(yintercept = 0,linetype="dashed")+
+  scale_y_continuous(breaks=c(-0.6,-0.3,0,0.3,0.6))+
   facet_grid(~DriverGroup)+
+  ylab("Deviation from global average")+
   theme(strip.background = element_blank(),
         strip.text.x = element_text(size=rel(1.5),angle=90),
         axis.text.y = element_text(size=rel(1.5)),
-        axis.text.x = element_blank(),axis.ticks.x= element_blank(),
-        axis.title.x= element_blank(),
+        axis.text.x = element_text(size=rel(1.2)),
         axis.title.y= element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        #axis.line = element_line(colour = "black"))
         legend.position="none")
-dev.off()
 
 #######################################################################################  
 
@@ -246,48 +276,32 @@ dev.off()
 
 clustdata <- mydata@data
 
-#######################################  
-#first using PCA to condense the data##
-#######################################
-
-head(clustdata)
-scores<-data.frame(Population=clustdata[,Population],Invasion=clustdata[,Invasions])
-
-#need to run the following code line by line
-for(var in c(CCvars,HumanUse,Pollution)){
-  fit <- princomp(clustdata[,var], cor=TRUE)
-  print(loadings(fit,cutoff=0.0))
-  summary(fit)
-  temp<-data.frame(fit$scores[,1:2])
-  #names(temp)<-c(paste0(var[1],"1"),paste0(var[1],"2"))
-  names(temp)<-c(paste0(var[1],"1"),paste0(var[1],"2"),paste0(var[1],"3"))
-  scores<-data.frame(scores,temp)
-}
-
 #apply cluster analysis
 library(fpc)
 library(cluster)
 out<-lapply(2:10,function(x){
-  pam(scores, x, metric="manhattan")
+  pam(clustdata, x, metric="manhattan")
 })
 
-save(out,file=paste0("out_PCAcluster",realm,transformation,"2.RData"))
-
-#check metrics by the number of clusters
-
+#check metrics by the number of clusters:
 #dissimilarity
-qplot(2:10,sapply(out,function(x)mean(x$clusinfo[,2])))
+#average dissimilarity between the observations in the cluster and the cluster's medoid
+q1<- qplot(2:10,sapply(out,function(x)median(x$clusinfo[,2])))+ggtitle("dissim")
+#separation
+#minimal dissimilarity between an observation of the cluster and an observation of another cluster
+q2 <- qplot(2:10,sapply(out,function(x)median(x$clusinfo[,5])))+ggtitle("sep")
+#silhouette widths
+q3 <- qplot(2:10,sapply(out,function(x)median(x$silinfo$clus.avg.width)))+ggtitle("med")
 
-#silhouette width
-plot(2:10,sapply(out,function(x)median(x$silinfo$clus.avg.width)))
-plot(2:10,sapply(out,function(x)mean(x$silinfo$clus.avg.width)))
-plot(2:10,sapply(out,function(x)min(x$silinfo$clus.avg.width)))
+#plot all
+library(cowplot)
+plot_grid(q1,q2,q3)
+
 
 #Selecting number of clusters
 
 #for terrestrial
-clusterNumber<-5 
-
+clusterNumber<-6 
 #for marine
 clusterNumber<-6
 
