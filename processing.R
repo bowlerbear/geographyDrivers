@@ -75,17 +75,31 @@ if(realm=="T"){
   rawData$Value[rawData$Type=="Cropland"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Pasture"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Population"&is.na(rawData$Value)]<-0.00
-} else if(realm=="M"){
-  rawData$Value[rawData$Type=="Light_pollution"&is.na(rawData$Value)]<-0.00
-}
+} 
+##################################################################################
 
+#convert data frame to wide format
+rawData2<-dcast(rawData,x+y~Type,value.var="Value")
+
+############################################################################################
+
+#remove planet boundary cells in the marine layers (because of reprojection issues)
+
+if(realm=="M"){
+  library(reshape2)
+  tempR <- rasterFromXYZ(rawData2[,c("x","y","Demersalfish_HighBycatch")])
+  bound <- boundaries(tempR,type="inner",direction=8)
+  boundDF <- as.data.frame(bound,xy=T)
+  rawData2 <- merge(rawData2,boundDF,by=c("x","y"),all.x=T)
+  rawData2 <- subset(rawData2,layer==0)
+  rawData2 <-rawData2[,1:18]#exclude the boundary layer
+}
 ############################################################################################
 
 #use just grid cells where we have a complete dataset
 #crop to a constant extent
 
-rawData<-dcast(rawData,x+y~Type,value.var="Value")
-mydata<-rawData[complete.cases(rawData),]
+mydata<-rawData[complete.cases(rawData2),]
 refCrop<-crop(ref,extent(-180,180,-58,78))
 out<-projectExtent(refCrop,crs=newproj)
 mydata<-subset(mydata,x>out@extent@xmin&x<out@extent@xmax)
@@ -137,6 +151,21 @@ if(realm=="T"){
 
 #####################################################################################
 
+#use positive values only for any variables with negative ones
+if(realm=="T"){
+  mydata@data$Light_pollution[mydata@data$Light_pollution<0]<- 0
+  mydata@data$Aridity_trend[mydata@data$Aridity_trend<0]<- 0
+  mydata@data$Extreme_trend[mydata@data$Extreme_trend<0]<- 0
+  mydata@data$Temp_divergence[mydata@data$Temp_divergence<0]<- 0
+  mydata@data$Temp_trend[mydata@data$Temp_trend<0]<- 0
+}else if (realm=="M"){
+  mydata@data$Light_pollution[mydata@data$Light_pollution<0]<- 0
+  mydata@data$Ocean_acid[mydata@data$Ocean_acid<0]<- 0
+  mydata@data$SST_divergence[mydata@data$SST_divergence<0]<- 0
+  mydata@data$SST_extremes[mydata@data$SST_extremes<0]<- 0
+  mydata@data$SST_trend[mydata@data$SST_trend<0]<- 0
+}
+#####################################################################################
 #Raster value transformation 
 
 if(transformation=="rank0"){
@@ -239,7 +268,7 @@ mycols<-c(mycols<-col2hex("turquoise4"),#connectivitiy
           brewer.pal(9,"Blues")[3:7],#human use
           brewer.pal(9,"OrRd")[3:7])#climate change
 
-driverOrder<-c("Climate_change","Human_use","Human_population","Pollution","Invasions")
+driverOrder<-c("Climate_change","Human_use","Human_population","Pollution","Alien Potential")
 driverCols<-c(brewer.pal(9,"OrRd")[7],brewer.pal(9,"Blues")[7],brewer.pal(9,"Purples")[5],
               brewer.pal(9,"Greys")[7],col2hex("turquoise4"))
 
