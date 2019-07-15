@@ -147,7 +147,7 @@ allco<-do.call(rbind,allco)
 allco$Driver<-factor(allco$Type,levels=myorder)
 allco$Class<-as.character(sapply(allco$Type,getDriverClass))
 allco$Class<-factor(allco$Class,levels=c("Climate_change","Human_use","Population",
-                                         "Pollution","Invasions"))
+                                         "Pollution","Alien potential"))
 allco<-allco[order(allco$Distance),]
 
 #subset dataset until consistent non-significance for each driver
@@ -211,7 +211,7 @@ alldataM$Driver<-factor(alldataM$variable,levels=myorder)
 
 #label each variable by its group
 alldataM$DriverGroup[alldataM$Driver%in%CCvars]<-"Climate_change"
-alldataM$DriverGroup[alldataM$Driver%in%Invasions]<-"Invasions"
+alldataM$DriverGroup[alldataM$Driver%in%Alien_potential]<-"Alien potential"
 alldataM$DriverGroup[alldataM$Driver%in%Pollution]<-"Pollution"
 alldataM$DriverGroup[alldataM$Driver%in%HumanUse]<-"Human_use"
 alldataM$DriverGroup[alldataM$Driver=="Population"]<-"Human_population"
@@ -280,7 +280,7 @@ clustdata <- mydata@data
 library(fpc)
 library(cluster)
 out<-lapply(2:10,function(x){
-  pam(clustdata, x, metric="manhattan")
+  pam(clustdata, x, metric="euclidean")
 })
 
 #check metrics by the number of clusters:
@@ -301,7 +301,7 @@ plot_grid(q1,q2,q3)
 #Selecting number of clusters
 
 #for terrestrial
-clusterNumber<-6 
+clusterNumber<-5 
 #for marine
 clusterNumber<-6
 
@@ -443,14 +443,14 @@ outT_HU<-myfun(mydataP[,c("Crop_trend","Cropland","Forest_loss","Pasture_trend",
 outT_Pop<-myfun(mydataP[,c("dummy","Population")])
 #for pollution
 outT_P<-myfun(mydataP[,c("Fertilizer_app","Pesticides","N_deposition")])
-#for invasions
+#for Alien potential
 outT_I<-myfun(mydataP[,c("dummy","Accessibility")])
 outSum<-stack(outT_TC,outT_P,outT_HU,outT_Pop,outT_I)
 save(outSum,file="outSum.RData")
 
 #code for marine datasets
 outM_TC<-myfun(mydataP[,c(CCvars)])
-#for invasions
+#for Alien potential
 outM_I<-myfun(mydataP[,c("dummy","Port_volume")])
 #for human population
 outM_Pop<-myfun(mydataP[,c("dummy","Population")])
