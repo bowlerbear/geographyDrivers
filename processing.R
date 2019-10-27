@@ -16,7 +16,14 @@ library(reshape2)
 
 ######################################################################
 
-#function to read each file
+#function to read each file:
+
+#files are the output of the harmonizeRasters function for each realm
+#see https://github.com/bowlerbear/harmonizeRasters
+#files is a data frame that contains:
+#columns x and y for the centroids of each raster grid cell
+#the corresponding columns for each spatial raster value for each cell
+
 rawData<-lapply(files,function(x){
   myfile<-load(x)
   myfile<-get(myfile)
@@ -65,7 +72,8 @@ ggplot(mydata@data)+geom_point(aes(x=x,y=y),size=rel(0.5))+facet_wrap(~Type)
 
 #how to cope with missing data?
 
-#assumed that it is 0 - that seems reasonable looking at where the missing values are
+#assume that it is 0 - that seems reasonable looking at where the missing values are
+#most missing data in Pesticide_use
 
 #terrestrial
 if(realm=="T"){
@@ -76,9 +84,10 @@ if(realm=="T"){
   rawData$Value[rawData$Type=="Pasture"&is.na(rawData$Value)]<-0.00
   rawData$Value[rawData$Type=="Population"&is.na(rawData$Value)]<-0.00
 } 
+
 ##################################################################################
 
-#convert data frame to wide format
+#convert data frame to wide format, with a column for each driver variable
 rawData2<-dcast(rawData,x+y~Type,value.var="Value")
 
 ############################################################################################
@@ -92,7 +101,7 @@ if(realm=="M"){
   boundDF <- as.data.frame(bound,xy=T)
   rawData2 <- merge(rawData2,boundDF,by=c("x","y"),all.x=T)
   rawData2 <- subset(rawData2,layer==0)
-  rawData2 <-rawData2[,1:18]#exclude the boundary layer
+  rawData2 <-rawData2[,1:18]
 }
 ############################################################################################
 
@@ -152,6 +161,7 @@ if(realm=="T"){
 #####################################################################################
 
 #use positive values only for any variables with negative ones
+
 if(realm=="T"){
   mydata@data$Light_pollution[mydata@data$Light_pollution<0]<- 0
   mydata@data$Aridity_trend[mydata@data$Aridity_trend<0]<- 0
@@ -165,7 +175,9 @@ if(realm=="T"){
   mydata@data$SST_extremes[mydata@data$SST_extremes<0]<- 0
   mydata@data$SST_trend[mydata@data$SST_trend<0]<- 0
 }
+
 #####################################################################################
+
 #Raster value transformation 
 
 if(transformation=="rank0"){
@@ -196,8 +208,7 @@ if(transformation=="rank0"){
   mydata@data<-data.frame(sapply(names(mydata@data),function(x){
     mydata@data[,x]<-(mydata@data[,x]-min(mydata@data[,x]))/(max(mydata@data[,x])-min(mydata@data[,x]))
   }))
-}}
-
+}
 
 #look at summary of the raster values as a check
 summary(mydata@data)
