@@ -1,5 +1,8 @@
 ###########################################################################################
 #Processsing script to covert the raster data frame into a form that is ready for analysis
+
+#this script is called within the analysis.R script
+
 ###########################################################################################
 
 #get libraries well need
@@ -259,6 +262,12 @@ if(realm=="T"){
                  "TBMF","TeCF","TeGS","TrCF","TDBF","TrGS",
                  "TMBF","T")
   
+  Climate_change<-CCvars<-c("Temp_trend","Extreme_trend","VOCC",
+                            "Temp_divergence","Aridity_trend")
+  Human_use<-HumanUse<-c("Urban","Cropland","Forest_loss","Pasture","Cattle_density")
+  Alien_potential<-"Connectivity"
+  Pollution<-c("Fertilizer_use","N_deposition","Pesticide_use","Light_pollution")
+  
 }else if (realm=="M"){
   myorder<-rev(c("SST_trend","VOCC_SST","SST_extremes","SST_divergence","Ocean_acid",
                  "Demersalfish_HighBycatch","Demersalfish_LowBycatch", 
@@ -271,7 +280,16 @@ if(realm=="T"){
                  "SAO","SPO",
                  "TAu","TNA","TNP","TSAm","TSAf","TAt",
                  "TEP","WIP")
+  
+  Climate_change<-CCvars<-c("Ocean_acid","SST_trend","SST_extremes","SST_divergence","VOCC_SST")
+  Human_use<-HumanUse<-c("Demersalfish_Destr","Demersalfish_HighBycatch","Demersalfish_LowBycatch",
+                         "Pelagicfish_HighBycatch","Pelagicfish_LowBycatch")
+  Alien_potential<-"Port_volume"
+  Pollution<-c("Fertilizer_use","Pesticide_use","Shipping_pollution","Light_pollution") 
+  
 }
+
+Population="Population"
 
 mycols<-c(mycols<-col2hex("turquoise4"),#connectivitiy
           brewer.pal(9,"Greys")[5:8],#pollution
