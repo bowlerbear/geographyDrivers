@@ -354,7 +354,7 @@ if (realm=="T"){
   rd<-mask(rd,wrld_simpl,inverse=T)  
 }
 
-#plot raster in ggplot  - Fig. 5
+#plot Fig. 4
 g<-gplot(r) + geom_tile(aes(fill = factor(value)))+
   scale_fill_manual(values=colsT2,na.value="white") +
   coord_equal()+theme(legend.position="none")
